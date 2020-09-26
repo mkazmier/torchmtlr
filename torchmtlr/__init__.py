@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 from scipy.interpolate import interp1d
 import torch
@@ -10,27 +12,30 @@ class MTLR(nn.Module):
 
     The MTLR time-logits are computed as:
     `z = sum_k x^T w_k + b_k`,
-    where `w_k` and `b_k` are learnable weights and biases for each time interval.
+    where `w_k` and `b_k` are learnable weights and biases for each time
+    interval.
 
-    Note that a slightly more efficient reformulation is used here, first proposed
-    in [2]_.
+    Note that a slightly more efficient reformulation is used here, first
+    proposed in [2]_.
 
     References
     ----------
-    ..[1] C.-N. Yu et al., ‘Learning patient-specific cancer survival distributions
-    as a sequence of dependent regressors’, in Advances in neural information processing systems 24,
-    2011, pp. 1845–1853.
-    ..[2] P. Jin, ‘Using Survival Prediction Techniques to Learn Consumer-Specific Reservation Price Distributions’,
-    Master's thesis, University of Alberta, Edmonton, AB, 2015.
+    ..[1] C.-N. Yu et al., ‘Learning patient-specific cancer survival
+    distributions as a sequence of dependent regressors’, in Advances in neural
+    information processing systems 24, 2011, pp. 1845–1853.
+    ..[2] P. Jin, ‘Using Survival Prediction Techniques to Learn
+    Consumer-Specific Reservation Price Distributions’, Master's thesis,
+    University of Alberta, Edmonton, AB, 2015.
     """
-    def __init__(self, in_features, num_time_bins):
+
+    def __init__(self, in_features: int, num_time_bins: int):
         """Initialises the module.
 
         Parameters
         ----------
-        in_features : int
+        in_features
             Number of input features.
-        num_time_bins : int
+        num_time_bins
             The number of bins to divide the time axis into.
         """
         super().__init__()
@@ -56,7 +61,7 @@ class MTLR(nn.Module):
                            requires_grad=True)))
         self.reset_parameters()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Performs a forward pass on a batch of examples.
 
         Parameters
@@ -78,17 +83,20 @@ class MTLR(nn.Module):
         nn.init.constant_(self.mtlr_bias, 0.)
 
 
-def masked_logsumexp(x, mask, dim=-1):
-    """Computes logsumexp over elements of a tensor specified by a mask in a numerically stable way.
+def masked_logsumexp(x: torch.Tensor,
+                     mask: torch.Tensor,
+                     dim: int = -1) -> torch.Tensor:
+    """Computes logsumexp over elements of a tensor specified by a mask
+    in a numerically stable way.
 
     Parameters
     ----------
-    x : torch.Tensor
+    x
         The input tensor.
-    mask : torch.Tensor
+    mask
         A tensor with the same shape as `x` with 1s in positions that should
         be used for logsumexp computation and 0s everywhere else.
-    dim : int
+    dim
         The dimension of `x` over which logsumexp is computed. Default -1 uses
         the last dimension.
 
@@ -104,54 +112,66 @@ def masked_logsumexp(x, mask, dim=-1):
                   dim=dim)) + max_val
 
 
-def mtlr_neg_log_likelihood(logits, target, average=False):
+def mtlr_neg_log_likelihood(logits: torch.Tensor,
+                            target: torch.Tensor,
+                            model: torch.nn.Module,
+                            C1: float,
+                            average: bool = False) -> torch.Tensor:
     """Computes the negative log-likelihood of a batch of model predictions.
 
     Parameters
     ----------
     logits : torch.Tensor, shape (num_samples, num_time_bins)
-        Tensor with the time-logits (as returned by the MTLR module) for one instance
-        in each row.
+        Tensor with the time-logits (as returned by the MTLR module) for one
+        instance in each row.
     target : torch.Tensor, shape (num_samples, num_time_bins)
         Tensor with the encoded ground truth survival.
+    model
+        PyTorch Module with at least `MTLR` layer.
+    C1
+        The L2 regularization strength.
+    average
+        Whether to compute the average log likelihood instead of sum
+        (useful for minibatch training).
 
     Returns
     -------
     torch.Tensor
-        The predicted survival curves for each row in `pred` at timepoints used during training.
+        The negative log likelihood.
     """
     censored = target.sum(dim=1) > 1
-    if censored.any():
-        nll_censored = masked_logsumexp(logits[censored],
-                                        target[censored]).sum()
-    else:
-        nll_censored = 0.
-    if (~censored).any():
-        nll_uncensored = (logits[~censored] * target[~censored]).sum()
-    else:
-        nll_uncensored = 0.
+    nll_censored = masked_logsumexp(logits[censored], target[censored]).sum() if censored.any() else 0
+    nll_uncensored = (logits[~censored] * target[~censored]).sum() if (~censored).any() else 0
 
     # the normalising constant
     norm = torch.logsumexp(logits, dim=1).sum()
+
     nll_total = -(nll_censored + nll_uncensored - norm)
     if average:
         nll_total = nll_total / target.size(0)
+
+    # L2 regularization
+    for k, v in model.named_parameters():
+        if "mtlr_weight" in k:
+            nll_total += C1/2 * torch.sum(v**2)
+
     return nll_total
 
 
-def mtlr_survival(logits):
+def mtlr_survival(logits: torch.Tensor) -> torch.Tensor:
     """Generates predicted survival curves from predicted logits.
 
     Parameters
     ----------
-    logits : torch.Tensor
-        Tensor with the time-logits (as returned by the MTLR module) for one instance
-        in each row.
+    logits
+        Tensor with the time-logits (as returned by the MTLR module) for one
+        instance in each row.
 
     Returns
     -------
     torch.Tensor
-        The predicted survival curves for each row in `pred` at timepoints used during training.
+        The predicted survival curves for each row in `pred` at timepoints used
+        during training.
     """
     # TODO: do not reallocate G in every call
     G = torch.tril(torch.ones(logits.size(1),
@@ -160,41 +180,47 @@ def mtlr_survival(logits):
     return torch.matmul(density, G)
 
 
-def mtlr_survival_at_times(logits, train_times, pred_times):
-    """Generates predicted survival curves at arbitrary timepoints using linear interpolation.
+def mtlr_survival_at_times(logits: torch.Tensor,
+                           train_times: Union[torch.Tensor, np.ndarray],
+                           pred_times: np.ndarray) -> np.ndarray:
+    """Generates predicted survival curves at arbitrary timepoints using linear
+    interpolation.
 
-    This function uses scipy.interpolate internally and returns a Numpy array, in contrast
-    with `mtlr_survival`.
+    Notes
+    -----
+    This function uses scipy.interpolate internally and returns a Numpy array,
+    in contrast with `mtlr_survival`.
 
     Parameters
     ----------
-    logits : torch.Tensor
-        Tensor with the time-logits (as returned by the MTLR module) for one instance
-        in each row.
-    train_times : Tensor or ndarray
-        Time bins used for model training. Must have the same length as the first dimension
-        of `pred`.
-    pred_times : np.ndarray
+    logits
+        Tensor with the time-logits (as returned by the MTLR module) for one
+        instance in each row.
+    train_times
+        Time bins used for model training. Must have the same length as the
+        first dimension of `pred`.
+    pred_times
         Array of times used to compute the survival curve.
 
     Returns
     -------
     np.ndarray
-        The survival curve for each row in `pred` at `pred_times`. The values are linearly interpolated
-        at timepoints not used for training.
+        The survival curve for each row in `pred` at `pred_times`. The values
+        are linearly interpolated at timepoints not used for training.
     """
     surv = mtlr_survival(logits).detach().numpy()
     interpolator = interp1d(train_times, surv)
     return interpolator(np.clip(pred_times, 0, train_times.max()))
 
 
-def mtlr_hazard(logits):
+def mtlr_hazard(logits: torch.Tensor) -> torch.Tensor:
     """Computes the hazard function from MTLR predictions.
 
     The hazard function is the instantenous rate of failure, i.e. roughly
     the risk of event at each time interval. It's computed using
     `h(t) = f(t) / S(t)`,
-    where `f(t)` and `S(t)` are the density and survival functions at t, respectively.
+    where `f(t)` and `S(t)` are the density and survival functions at t,
+    respectively.
 
     Parameters
     ----------
@@ -210,7 +236,7 @@ def mtlr_hazard(logits):
         logits, dim=1)[:, :-1] / (mtlr_survival(logits) + 1e-15)[:, 1:]
 
 
-def mtlr_risk(logits):
+def mtlr_risk(logits: torch.Tensor) -> torch.Tensor:
     """Computes the overall risk of event from MTLR predictions.
 
     The risk is computed as the time integral of the cumulative hazard,

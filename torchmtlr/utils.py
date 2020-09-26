@@ -1,10 +1,13 @@
 from math import ceil, sqrt
+from typing import Optional
 import numpy as np
 import torch
 from lifelines import KaplanMeierFitter
 
 
-def encode_survival(time, event, bins):
+def encode_survival(time: np.ndarray,
+                    event: np.ndarray,
+                    bins: np.ndarray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format
     required for MTLR training.
 
@@ -17,11 +20,11 @@ def encode_survival(time, event, bins):
 
     Parameters
     ----------
-    time : np.ndarray
+    time
         Array of event or censoring times.
-    event : np.ndarray
+    event
         Array of event indicators (0 = censored).
-    bins : np.ndarray
+    bins
         Bins used for time axis discretisation.
 
     Returns
@@ -40,7 +43,7 @@ def encode_survival(time, event, bins):
     return y
 
 
-def reset_parameters(model):
+def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
     """Resets the parameters of a PyTorch module and its children."""
     for m in model.modules():
         try:
@@ -50,7 +53,9 @@ def reset_parameters(model):
     return model
 
 
-def make_time_bins(times, num_bins=None, use_quantiles=True):
+def make_time_bins(times: np.ndarray,
+                   num_bins: Optional[int] = None,
+                   use_quantiles: bool = True) -> np.ndarray:
     """Creates the bins for survival time discretisation.
 
     By default, sqrt(num_observation) bins corresponding to the quantiles of
@@ -58,14 +63,14 @@ def make_time_bins(times, num_bins=None, use_quantiles=True):
 
     Parameters
     ----------
-    times : np.ndarray
+    times
         Array of survival times.
-    num_bins : int, optional
+    num_bins
         The number of bins to use. If None (default), sqrt(num_observations)
         bins will be used.
-    use_quantiles : bool
-        If True, the bin edges will correspond to quantiles of `times` (default).
-        Otherwise, generates equally-spaced bins.
+    use_quantiles
+        If True, the bin edges will correspond to quantiles of `times`
+        (default). Otherwise, generates equally-spaced bins.
 
     Returns
     -------
@@ -120,8 +125,9 @@ def integrated_brier_score(time_true, time_pred, event_observed, time_bins):
     Notes
     -----
     This function uses the definition from [1]_ with inverse probability
-    of censoring weighting (IPCW) to correct for censored observations. The weights
-    are computed using the Kaplan-Meier estimate of the censoring distribution.
+    of censoring weighting (IPCW) to correct for censored observations.
+    The weights are computed using the Kaplan-Meier estimate of the censoring
+    distribution.
 
     References
     ----------
