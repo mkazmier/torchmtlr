@@ -1,12 +1,13 @@
 from math import ceil, sqrt
-from typing import Optional
+from typing import Optional, Union
+
 import numpy as np
 import torch
 from lifelines import KaplanMeierFitter
 
 
-def encode_survival(time: np.ndarray,
-                    event: np.ndarray,
+def encode_survival(time: Union[float, int, np.ndarray],
+                    event: Union[int, np.ndarray],
                     bins: np.ndarray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format
     required for MTLR training.
@@ -21,9 +22,9 @@ def encode_survival(time: np.ndarray,
     Parameters
     ----------
     time
-        Array of event or censoring times.
+        Time of event or censoring.
     event
-        Array of event indicators (0 = censored).
+        Event indicator (0 = censored).
     bins
         Bins used for time axis discretisation.
 
@@ -32,15 +33,21 @@ def encode_survival(time: np.ndarray,
     torch.Tensor
         Encoded survival times.
     """
+    if isinstance(time, (float, int)):
+        time = np.array([time])
+    if isinstance(event, int):
+        event = np.array([event])
+
     time = np.clip(time, 0, bins.max())
-    bin_idx = np.digitize(time, bins)
     # add extra bin [max_time, inf) at the end
-    y = torch.zeros(bins.shape[0] + 1, dtype=torch.float)
-    if event == 1:
-        y[bin_idx] = 1
-    else:
-        y[bin_idx:] = 1
-    return y
+    y = torch.zeros((time.shape[0], bins.shape[0] + 1), dtype=torch.float)
+    for i, (t, e) in enumerate(zip(time, event)):
+        bin_idx = np.digitize(t, bins)
+        if e == 1:
+            y[i, bin_idx] = 1
+        else:
+            y[i, bin_idx:] = 1
+    return y.squeeze()
 
 
 def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:

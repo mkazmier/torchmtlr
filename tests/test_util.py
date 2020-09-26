@@ -7,8 +7,10 @@ from torchmtlr.utils import encode_survival
 
 bins = np.arange(1, 5, dtype=np.float32)
 testdata = [
-    (3, 1, np.array([0, 0, 0, 1, 0]), bins),
-    (2, 0, np.array([0, 0, 1, 1, 1]), bins)
+    (3., 1, torch.tensor([0, 0, 0, 1, 0]), bins),
+    (2., 0, torch.tensor([0, 0, 1, 1, 1]), bins),
+    (np.array([3., 2.]), np.array([1, 0]),
+     torch.tensor([[0, 0, 0, 1, 0], [0, 0, 1, 1, 1]]), bins)
 ]
 @pytest.mark.parametrize("time,event,expected,bins", testdata)
 def test_encode_survival(time, event, expected, bins):

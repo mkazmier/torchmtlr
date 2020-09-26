@@ -224,7 +224,7 @@ def mtlr_hazard(logits: torch.Tensor) -> torch.Tensor:
 
     Parameters
     ----------
-    logits : torch.Tensor
+    logits
         The predicted logits as returned by the `MTLR` module.
 
     Returns
@@ -244,7 +244,7 @@ def mtlr_risk(logits: torch.Tensor) -> torch.Tensor:
 
     Parameters
     ----------
-    logits : torch.Tensor
+    logits
         The predicted logits as returned by the `MTLR` module.
 
     Returns
