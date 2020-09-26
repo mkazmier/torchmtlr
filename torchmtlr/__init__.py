@@ -2,6 +2,9 @@ import numpy as np
 from scipy.interpolate import interp1d
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from .utils import pack_sequence, unpack_sequence
 
 
 class MTLR(nn.Module):
@@ -23,7 +26,7 @@ class MTLR(nn.Module):
     ..[2] P. Jin, ‘Using Survival Prediction Techniques to Learn Consumer-Specific Reservation Price Distributions’,
     Master's thesis, University of Alberta, Edmonton, AB, 2015.
     """
-    def __init__(self, in_features, num_time_bins):
+    def __init__(self, in_features, num_time_bins, num_events=1):
         """Initialises the module.
 
         Parameters
@@ -36,11 +39,12 @@ class MTLR(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.num_time_bins = num_time_bins
+        self.num_events = num_events
 
         weight = torch.zeros(self.in_features,
-                             self.num_time_bins - 1,
+                             (self.num_time_bins-1) * self.num_events,
                              dtype=torch.float)
-        bias = torch.zeros(self.num_time_bins - 1)
+        bias = torch.zeros((self.num_time_bins-1) * self.num_events)
         self.mtlr_weight = nn.Parameter(weight)
         self.mtlr_bias = nn.Parameter(bias)
 
@@ -70,7 +74,10 @@ class MTLR(nn.Module):
             The predicted time logits.
         """
         out = torch.matmul(x, self.mtlr_weight) + self.mtlr_bias
-        return torch.matmul(out, self.G)
+        # (n (event time)) -> (n event time)
+        out = unpack_sequence(out, self.num_events)
+        # (n event time) -> (n (event time))
+        return pack_sequence(torch.matmul(out, self.G))
 
     def reset_parameters(self):
         """Resets the model parameters."""
@@ -121,25 +128,34 @@ def mtlr_neg_log_likelihood(logits, target, average=False):
         The predicted survival curves for each row in `pred` at timepoints used during training.
     """
     censored = target.sum(dim=1) > 1
-    if censored.any():
-        nll_censored = masked_logsumexp(logits[censored],
-                                        target[censored]).sum()
-    else:
-        nll_censored = 0.
-    if (~censored).any():
-        nll_uncensored = (logits[~censored] * target[~censored]).sum()
-    else:
-        nll_uncensored = 0.
+    nll_censored = masked_logsumexp(logits[censored], target[censored]).sum() if censored.any() else 0
+    nll_uncensored = (logits[~censored] * target[~censored]).sum() if (~censored).any() else 0
 
     # the normalising constant
     norm = torch.logsumexp(logits, dim=1).sum()
+
     nll_total = -(nll_censored + nll_uncensored - norm)
     if average:
         nll_total = nll_total / target.size(0)
     return nll_total
 
 
-def mtlr_survival(logits):
+def mtlr_cif(logits, num_events=1):
+    density = torch.softmax(logits, dim=1)
+    # pad the predicted CIF so that
+    # for each event, CIF(t=0) = 0
+    padding = (1, 0, 0, 0, 0, 0)
+    return F.pad(unpack_sequence(density, num_events)[..., :-1].cumsum(-1), padding)
+
+
+def mtlr_cif_at_times(logits, train_times, pred_times, num_events=1):
+    with torch.no_grad():
+        cif = mtlr_cif(logits, num_events).cpu().numpy()
+    interpolator = interp1d(train_times, cif)
+    return interpolator(pred_times)
+
+
+def mtlr_survival(logits, num_events=1):
     """Generates predicted survival curves from predicted logits.
 
     Parameters
@@ -153,14 +169,11 @@ def mtlr_survival(logits):
     torch.Tensor
         The predicted survival curves for each row in `pred` at timepoints used during training.
     """
-    # TODO: do not reallocate G in every call
-    G = torch.tril(torch.ones(logits.size(1),
-                              logits.size(1))).to(logits.device)
-    density = torch.softmax(logits, dim=1)
-    return torch.matmul(density, G)
+    cif = mtlr_cif(logits, num_events)
+    return 1 - cif.sum(dim=1)
 
 
-def mtlr_survival_at_times(logits, train_times, pred_times):
+def mtlr_survival_at_times(logits, train_times, pred_times, num_events=1):
     """Generates predicted survival curves at arbitrary timepoints using linear interpolation.
 
     This function uses scipy.interpolate internally and returns a Numpy array, in contrast
@@ -183,12 +196,13 @@ def mtlr_survival_at_times(logits, train_times, pred_times):
         The survival curve for each row in `pred` at `pred_times`. The values are linearly interpolated
         at timepoints not used for training.
     """
-    surv = mtlr_survival(logits).detach().numpy()
+    with torch.no_grad():
+        surv = mtlr_survival(logits, num_events).numpy()
     interpolator = interp1d(train_times, surv)
     return interpolator(np.clip(pred_times, 0, train_times.max()))
 
 
-def mtlr_hazard(logits):
+def mtlr_hazard(logits, num_events=1):
     """Computes the hazard function from MTLR predictions.
 
     The hazard function is the instantenous rate of failure, i.e. roughly
@@ -206,11 +220,12 @@ def mtlr_hazard(logits):
     torch.Tensor
         The hazard function at each time interval in `y_pred`.
     """
-    return torch.softmax(
-        logits, dim=1)[:, :-1] / (mtlr_survival(logits) + 1e-15)[:, 1:]
+    density = unpack_sequence(torch.softmax(logits, dim=1), num_events)
+    survival = mtlr_survival(logits, num_events).unsqueeze(1)
+    return density[..., :-1] / (survival + 1e-15)[..., 1:]
 
 
-def mtlr_risk(logits):
+def mtlr_risk(logits, num_events=1):
     """Computes the overall risk of event from MTLR predictions.
 
     The risk is computed as the time integral of the cumulative hazard,
@@ -226,5 +241,5 @@ def mtlr_risk(logits):
     torch.Tensor
         The predicted overall risk.
     """
-    hazard = mtlr_hazard(logits)
-    return torch.sum(hazard.cumsum(1), dim=1)
+    hazard = mtlr_hazard(logits, num_events)
+    return torch.sum(hazard.cumsum(dim=-1), dim=-1)

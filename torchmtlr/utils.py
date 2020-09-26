@@ -2,6 +2,7 @@ from math import ceil, sqrt
 import numpy as np
 import torch
 from lifelines import KaplanMeierFitter
+from einops import rearrange
 
 
 def encode_survival(time, event, bins):
@@ -153,3 +154,37 @@ def integrated_brier_score(time_true, time_pred, event_observed, time_bins):
     # integrate over all time bins
     score = np.trapz(scores, time_bins) / time_bins.max()
     return score
+
+
+def pack_sequence(seq):
+    return rearrange(seq, "n event time -> n (event time)")
+
+
+def unpack_sequence(seq, num_events):
+    return rearrange(seq, "n (event time) -> n event time", event=num_events, n=seq.size(0))
+
+
+def make_synthetic_data(n_samples=8000,
+                        n_noise_features=8,
+                        base_hazard=.1,
+                        percent_censor=.1,
+                        competing=False):
+    """Generates a synthetic survival dataset with linear hazard."""
+    x = np.random.standard_normal((n_samples, n_noise_features + 2))
+    hazards_0 = x[:, 0] + 2 * x[:, 1]
+    hazards_1 = x[:, 0] + 2 * x[:, 2]
+    event_time_0 = np.random.exponential(1 / (base_hazard * np.exp(hazards_0)))
+    event_time_1 = np.random.exponential(1 / (base_hazard * np.exp(hazards_1)))
+    event_time = np.minimum(event_time_0, event_time_1)
+    censor_time = np.quantile(event_time, 1 - percent_censor)
+
+    time = np.minimum(event_time, censor_time)
+#     event = (event_time < censor_time).astype(np.int)
+    event_type = np.where(event_time_0 < event_time_1, 1, 2)
+    event = np.where(event_time < censor_time, event_type, 0)
+
+    return pd.DataFrame({
+        "time": time,
+        "event": event,
+        **{f"x{i+1}": x[:, i] for i in range(x.shape[1])}
+    })
