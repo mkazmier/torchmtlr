@@ -14,7 +14,7 @@ testdata = [
     (torch.randn((2, 3)), 5), # representative case
     (torch.randn((1, 3)), 5), # one sample
     (torch.randn((2, 1)), 5), # one feature
-    (torch.randn((2, 3)), 1), # one time bin
+    (torch.randn((2, 3)), 2), # one time bin + catch-all
 ]
 @pytest.mark.parametrize("x,num_time_bins", testdata)
 def test_mtlr_forward(x, num_time_bins):
@@ -91,7 +91,7 @@ def test_mtlr_survival(logits, expected):
 
 @pytest.mark.parametrize("logits,survival", testdata)
 def test_mtlr_survival_at_times(logits, survival):
-    train_times = np.arange(4, dtype=np.float32)
+    train_times = np.arange(1, 5, dtype=np.float32)
     pred_times = np.array([.5, 1.5])
     expected = np.array([(survival[:, 0] + survival[:, 1]) / 2,
                          (survival[:, 1] + survival[:, 2]) / 2])

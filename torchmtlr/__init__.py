@@ -222,6 +222,7 @@ def mtlr_cif_at_times(logits: torch.Tensor,
     """
     # TODO can we use PyTorch interpolation functions here to make it
     # differentiable?
+    train_times = np.pad(train_times, (1, 0))[..., :-1]
     with torch.no_grad():
         cif = mtlr_cif(logits, num_events).cpu().numpy()
     interpolator = interp1d(train_times, cif)
@@ -288,7 +289,7 @@ def mtlr_survival_at_times(logits: torch.Tensor,
     """
     # TODO can we use PyTorch interpolation functions here to make it
     # differentiable?
-    train_times = np.pad(train_times, (1, 0))
+    train_times = np.pad(train_times, (1, 0))[..., :-1]
     surv = mtlr_survival(logits).detach().numpy()
     interpolator = interp1d(train_times, surv)
     return interpolator(np.clip(pred_times, 0, train_times.max()))
