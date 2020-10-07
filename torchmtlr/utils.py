@@ -92,7 +92,7 @@ def make_time_bins(times: np.ndarray,
         Array of bin edges.
     """
     if event is not None:
-        times = times[event == 1]
+        times = times[event > 1]
     if num_bins is None:
         num_bins = ceil(sqrt(len(times)))
     if use_quantiles:
