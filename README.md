@@ -1,19 +1,66 @@
 # Multi-task logistic regression for individual survival prediction
-PyTorch implementation of multi-task logistic regression for survival prediction.
+Lightweight PyTorch implementation of MTLR for survival prediction.
 
-## Setup
 
-### Google Colaboratory
-Simply follow [the Colab link](https://colab.research.google.com/drive/1o3v_9NBUYD09a2LS5ElTqXFJ0IW4CjMY?usp=sharing) and log in with your Google account. To speed up training, make sure to use the GPU runtime.
+This package provides an `MTLR` module that can be used just like any other PyTorch module, an implementation of the log likelihood and some handy utility functions. The aims are simplicity and compatibility with the PyTorch ecosystem. 
 
-### On local machine
+## Quickstart example
+```python
+# time = array of times to event
+# event = array of event indicators (0 = censored)
+# x = array of features
+
+from torchmtlr import (MTLR, mtlr_neg_log_likelihood,
+                       mtlr_survival, mtlr_survival_at_times)
+from torchmtlr.utils import encode_survival, make_time_bins
+
+time_bins = make_time_bins(time, event)
+target = encode_survival(time, event, time_bins)
+
+model = MTLR(x.shape[1], len(time_bins))
+
+# forward pass
+logits = model(x)
+
+# compute minibatch loss
+loss = mtlr_neg_log_likelihood(logits, target, model, C1=1., average=True)
+
+# predict survival curves at training timepoints
+survival = mtlr_survival(logits)
+
+# ...or at arbitrary times
+new_times = np.array([1., 1.5, 2.])
+survival = mtlr_survival_at_times(logits, time_bins, new_times)
+
+
+# use just like any other PyTorch module
+model = nn.Sequential(
+    nn.Linear(x.shape[1], 64),
+    nn.ReLU(inplace=True),
+    MTLR(64, len(time_bins))
+)
+```
+
+See the [notebooks] for more advanced usecases.
+
+
+## Installation
+
+_(Note: PyPI package coming soon!)_
+
 1. Clone or download the repo.
 2. Install the required packages:
 ```
 pip install -r requirements.txt
 ```
-Note: by default, the CPU version of Pytorch is installed. If you want to use a local GPU, you need to [install CUDA and Pytorch with GPU support](https://pytorch.org/get-started/locally/).
-3. Launch the notebook server and open the notebook.
+Note: by default, the CPU version of Pytorch is installed. If you want to use a GPU, you need to [install CUDA and Pytorch with GPU support](https://pytorch.org/get-started/locally/).
+3. Install `torchmtlr`:
+```
+pip install -e .
+```
+
+## Notes
+### Using 
 
 ## References
 1. C.-N. Yu, R. Greiner, H.-C. Lin, and V. Baracos, ‘Learning patient-specific cancer survival distributions as a sequence of dependent regressors’, in Advances in neural information processing systems 24, pp. 1845–1853.
