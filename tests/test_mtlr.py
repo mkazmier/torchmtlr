@@ -91,7 +91,7 @@ def test_mtlr_survival(logits, expected):
 
 @pytest.mark.parametrize("logits,survival", testdata)
 def test_mtlr_survival_at_times(logits, survival):
-    train_times = np.arange(4, dtype=np.float32)
+    train_times = np.arange(1, 5, dtype=np.float32)
     pred_times = np.array([.5, 1.5])
     expected = np.array([(survival[:, 0] + survival[:, 1]) / 2,
                          (survival[:, 1] + survival[:, 2]) / 2])
