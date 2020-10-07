@@ -62,7 +62,8 @@ def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
 
 def make_time_bins(times: np.ndarray,
                    num_bins: Optional[int] = None,
-                   use_quantiles: bool = True) -> np.ndarray:
+                   use_quantiles: bool = True,
+                   event: Optional[np.ndarray] = None) -> np.ndarray:
     """Creates the bins for survival time discretisation.
 
     By default, sqrt(num_observation) bins corresponding to the quantiles of
@@ -78,12 +79,17 @@ def make_time_bins(times: np.ndarray,
     use_quantiles
         If True, the bin edges will correspond to quantiles of `times`
         (default). Otherwise, generates equally-spaced bins.
+    event
+        Array of event indicators. If specified, only samples where event == 1
+        will be used to determine the time bins.
 
     Returns
     -------
     np.ndarray
         Array of bin edges.
     """
+    if event is not None:
+        times = times[event == 1]
     if num_bins is None:
         num_bins = ceil(sqrt(len(times)))
     if use_quantiles:
