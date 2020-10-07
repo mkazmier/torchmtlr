@@ -14,7 +14,7 @@ testdata = [
     (torch.randn((2, 3)), 5), # representative case
     (torch.randn((1, 3)), 5), # one sample
     (torch.randn((2, 1)), 5), # one feature
-    (torch.randn((2, 3)), 1), # one time bin
+    (torch.randn((2, 3)), 2), # one time bin + catch-all
 ]
 @pytest.mark.parametrize("x,num_time_bins", testdata)
 def test_mtlr_forward(x, num_time_bins):
