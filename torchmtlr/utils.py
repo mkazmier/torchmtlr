@@ -40,15 +40,17 @@ def encode_survival(time: Union[float, int, np.ndarray],
         event = np.array([event])
 
     time = np.clip(time, 0, bins.max())
+    bin_idxs = np.digitize(time, bins)
+    num_events = len(np.unique(event)) - 1
     # add extra bin [max_time, inf) at the end
-    y = torch.zeros((time.shape[0], bins.shape[0] + 1), dtype=torch.float)
-    for i, (t, e) in enumerate(zip(time, event)):
-        bin_idx = np.digitize(t, bins)
-        if e == 1:
-            y[i, bin_idx] = 1
+    y = np.zeros((time.shape[0], num_events, bins.shape[0] + 1), dtype=np.int)
+    for i, e in enumerate(event):
+        bin_idx = bin_idxs[i]
+        if e > 0:
+            y[i, e - 1, bin_idx] = 1
         else:
-            y[i, bin_idx:] = 1
-    return y.squeeze()
+            y[i, :, bin_idx:] = 1
+    return torch.tensor(y.reshape(time.shape[0], -1), dtype=torch.float)
 
 
 def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
