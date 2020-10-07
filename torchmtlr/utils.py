@@ -1,11 +1,15 @@
 from math import ceil, sqrt
+from typing import Optional, Union
+
 import numpy as np
 import torch
 from lifelines import KaplanMeierFitter
 from einops import rearrange
 
 
-def encode_survival(time, event, bins):
+def encode_survival(time: Union[float, int, np.ndarray],
+                    event: Union[int, np.ndarray],
+                    bins: np.ndarray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format
     required for MTLR training.
 
@@ -18,11 +22,11 @@ def encode_survival(time, event, bins):
 
     Parameters
     ----------
-    time : np.ndarray
-        Array of event or censoring times.
-    event : np.ndarray
-        Array of event indicators (0 = censored).
-    bins : np.ndarray
+    time
+        Time of event or censoring.
+    event
+        Event indicator (0 = censored).
+    bins
         Bins used for time axis discretisation.
 
     Returns
@@ -30,18 +34,24 @@ def encode_survival(time, event, bins):
     torch.Tensor
         Encoded survival times.
     """
+    if isinstance(time, (float, int)):
+        time = np.array([time])
+    if isinstance(event, int):
+        event = np.array([event])
+
     time = np.clip(time, 0, bins.max())
-    bin_idx = np.digitize(time, bins)
     # add extra bin [max_time, inf) at the end
-    y = torch.zeros(bins.shape[0] + 1, dtype=torch.float)
-    if event == 1:
-        y[bin_idx] = 1
-    else:
-        y[bin_idx:] = 1
-    return y
+    y = torch.zeros((time.shape[0], bins.shape[0] + 1), dtype=torch.float)
+    for i, (t, e) in enumerate(zip(time, event)):
+        bin_idx = np.digitize(t, bins)
+        if e == 1:
+            y[i, bin_idx] = 1
+        else:
+            y[i, bin_idx:] = 1
+    return y.squeeze()
 
 
-def reset_parameters(model):
+def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
     """Resets the parameters of a PyTorch module and its children."""
     for m in model.modules():
         try:
@@ -51,7 +61,10 @@ def reset_parameters(model):
     return model
 
 
-def make_time_bins(times, num_bins=None, use_quantiles=True):
+def make_time_bins(times: np.ndarray,
+                   num_bins: Optional[int] = None,
+                   use_quantiles: bool = True,
+                   event: Optional[np.ndarray] = None) -> np.ndarray:
     """Creates the bins for survival time discretisation.
 
     By default, sqrt(num_observation) bins corresponding to the quantiles of
@@ -59,20 +72,25 @@ def make_time_bins(times, num_bins=None, use_quantiles=True):
 
     Parameters
     ----------
-    times : np.ndarray
+    times
         Array of survival times.
-    num_bins : int, optional
+    num_bins
         The number of bins to use. If None (default), sqrt(num_observations)
         bins will be used.
-    use_quantiles : bool
-        If True, the bin edges will correspond to quantiles of `times` (default).
-        Otherwise, generates equally-spaced bins.
+    use_quantiles
+        If True, the bin edges will correspond to quantiles of `times`
+        (default). Otherwise, generates equally-spaced bins.
+    event
+        Array of event indicators. If specified, only samples where event == 1
+        will be used to determine the time bins.
 
     Returns
     -------
     np.ndarray
         Array of bin edges.
     """
+    if event is not None:
+        times = times[event == 1]
     if num_bins is None:
         num_bins = ceil(sqrt(len(times)))
     if use_quantiles:
@@ -121,8 +139,9 @@ def integrated_brier_score(time_true, time_pred, event_observed, time_bins):
     Notes
     -----
     This function uses the definition from [1]_ with inverse probability
-    of censoring weighting (IPCW) to correct for censored observations. The weights
-    are computed using the Kaplan-Meier estimate of the censoring distribution.
+    of censoring weighting (IPCW) to correct for censored observations.
+    The weights are computed using the Kaplan-Meier estimate of the censoring
+    distribution.
 
     References
     ----------
