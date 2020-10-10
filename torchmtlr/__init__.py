@@ -85,6 +85,10 @@ class MTLR(nn.Module):
         nn.init.xavier_normal_(self.mtlr_weight)
         nn.init.constant_(self.mtlr_bias, 0.)
 
+    def __repr__(self):
+        return (f"{self.__class__.__name__}(in_features={self.in_features},"
+                f" num_time_bins={self.num_time_bins})")
+
 
 def masked_logsumexp(x: torch.Tensor,
                      mask: torch.Tensor,
