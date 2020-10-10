@@ -48,12 +48,9 @@ class MTLR(nn.Module):
         self.in_features = in_features
         self.num_time_bins = num_time_bins
 
-        weight = torch.zeros(self.in_features,
-                             self.num_time_bins - 1,
-                             dtype=torch.float)
-        bias = torch.zeros(self.num_time_bins - 1)
-        self.mtlr_weight = nn.Parameter(weight)
-        self.mtlr_bias = nn.Parameter(bias)
+        self.mtlr_weight = nn.Parameter(torch.Tensor(self.in_features,
+                                                     self.num_time_bins - 1))
+        self.mtlr_bias = nn.Parameter(torch.Tensor(self.num_time_bins - 1))
 
         # `G` is the coding matrix from [2]_ used for fast summation.
         # When registered as buffer, it will be automatically
