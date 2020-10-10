@@ -39,6 +39,12 @@ class MTLR(nn.Module):
             The number of bins to divide the time axis into.
         """
         super().__init__()
+        if num_time_bins < 2:
+            raise ValueError("The number of time bins must be at least 2"
+                             f" (got {num_time_bins})")
+        if in_features < 1:
+            raise ValueError("The number of input features must be at least 1"
+                             f" (got {in_features})")
         self.in_features = in_features
         self.num_time_bins = num_time_bins
 
