@@ -99,6 +99,46 @@ def make_time_bins(times: np.ndarray,
     return bins
 
 
+def make_optimizer(opt_cls: torch.optim.Optimizer,
+                   model: torch.nn.Module,
+                   **kwargs) -> torch.optim.Optimizer:
+    """Creates a PyTorch optimizer for MTLR training.
+
+    This is a helper function to instantiate an optimizer with no weight decay
+    on biases (which shouldn't be regularized) and MTLR parameters (which have
+    a separate regularization mechanism). Note that the `opt_cls` argument
+    should be the optimizer class, not an instantiated object (e.g. optim.Adam
+    instead of optim.Adam(model.parameters(), ...)).
+
+    Parameters
+    ----------
+    opt_cls
+        The optimizer class to instantiate.
+    model
+        The PyTorch module whose parameters should be optimized.
+    kwargs
+        Additional keyword arguments to optimizer constructor.
+
+    Returns
+    -------
+    torch.optim.Optimizer
+        The instantiated optimizer object.
+
+    """
+    params_dict = dict(model.named_parameters())
+    weights = [v for k, v in params_dict.items() if "mtlr" not in k and "bias" not in k]
+    biases = [v for k, v in params_dict.items() if "bias" in k]
+    mtlr_weights = [v for k, v in params_dict.items() if "mtlr_weight" in k]
+    # Don't use weight decay on the biases and MTLR parameters, which have
+    # their own separate L2 regularization
+    optimizer = opt_cls([
+        {"params": weights},
+        {"params": biases, "weight_decay": 0.},
+        {"params": mtlr_weights, "weight_decay": 0.},
+    ], **kwargs)
+    return optimizer
+
+
 def normalize(data, mean=None, std=None, skip_cols=[]):
     """Normalizes the columns of Pandas DataFrame to zero mean and unit
     standard deviation."""
