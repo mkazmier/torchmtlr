@@ -14,10 +14,10 @@ from torchmtlr import (MTLR, mtlr_neg_log_likelihood,
                        mtlr_survival, mtlr_survival_at_times)
 from torchmtlr.utils import encode_survival, make_time_bins
 
-time_bins = make_time_bins(time, event)
+time_bins = make_time_bins(time, event=event)
 target = encode_survival(time, event, time_bins)
 
-model = MTLR(x.shape[1], len(time_bins))
+model = MTLR(x.shape[1], len(time_bins) + 1)
 
 # forward pass
 logits = model(x)
