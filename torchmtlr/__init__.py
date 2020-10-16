@@ -215,7 +215,7 @@ def mtlr_survival_at_times(logits: torch.Tensor,
         The survival curve for each row in `pred` at `pred_times`. The values
         are linearly interpolated at timepoints not used for training.
     """
-    train_times = np.pad(train_times, (1, 0))[..., :-1]
+    train_times = np.pad(train_times, (1, 0))
     surv = mtlr_survival(logits).detach().cpu().numpy()
     interpolator = interp1d(train_times, surv)
     return interpolator(np.clip(pred_times, 0, train_times.max()))
