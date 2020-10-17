@@ -1,8 +1,8 @@
-# Multi-task logistic regression for individual survival prediction
+# Multi-task logistic regression for individual survival prediction in PyTorch
 Lightweight PyTorch implementation of MTLR for survival prediction.
 
 
-This package provides an `MTLR` module that can be used just like any other PyTorch module, an implementation of the log likelihood and some handy utility functions. The aims are simplicity and compatibility with the PyTorch ecosystem. 
+This package provides an `MTLR` class that can be used just like any other PyTorch module, an implementation of the log likelihood function for training and some handy utility functions. The aims are simplicity and compatibility with the PyTorch ecosystem. 
 
 ## Quickstart example
 ```python
@@ -60,6 +60,15 @@ Note: by default, the CPU version of Pytorch is installed. If you want to use a 
 ```
 pip install -e .
 ```
+
+## Citation
+If you found the package useful for your publication and want to cite it, you can use the following BibTeX entry:
+@misc{kazmierski2020torchmtlr,
+  author = {Kazmierski, Michal},
+  title = {torchmtlr: flexible and modular implementation of multi-task logistic regression in PyTorch.},
+  year  = {2020},
+  url   = {https://github.com/mkazmier/torchmtlr},
+}
 
 ## References
 1. C.-N. Yu, R. Greiner, H.-C. Lin, and V. Baracos, ‘Learning patient-specific cancer survival distributions as a sequence of dependent regressors’, in Advances in neural information processing systems 24, pp. 1845–1853.
