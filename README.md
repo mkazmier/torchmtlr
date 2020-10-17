@@ -6,9 +6,9 @@ This package provides an `MTLR` module that can be used just like any other PyTo
 
 ## Quickstart example
 ```python
-# time = array of times to event
-# event = array of event indicators (0 = censored)
-# x = array of features
+# time = tensor of times to event
+# event = tensor of event indicators (0 = censored)
+# x = tensor of features
 
 from torchmtlr import (MTLR, mtlr_neg_log_likelihood,
                        mtlr_survival, mtlr_survival_at_times)
@@ -18,7 +18,7 @@ from torchmtlr.utils import encode_survival, make_time_bins
 time_bins = make_time_bins(time, event=event)
 target = encode_survival(time, event, time_bins)
 
-model = MTLR(x.shape[1], len(time_bins) + 1)
+model = MTLR(x.shape[1], len(time_bins))
 
 # forward pass
 logits = model(x)
@@ -26,12 +26,13 @@ logits = model(x)
 # compute minibatch loss
 loss = mtlr_neg_log_likelihood(logits, target, model, C1=1., average=True)
 
-# predict survival curves at training timepoints
-survival = mtlr_survival(logits)
+with torch.no_grad():
+  # predict survival curves at training timepoints
+  survival = mtlr_survival(logits)
 
-# ...or at arbitrary times
-new_times = np.array([1., 1.5, 2.])
-survival = mtlr_survival_at_times(logits, time_bins, new_times)
+  # ...or at arbitrary times
+  new_times = np.array([1., 1.5, 2.])
+  survival = mtlr_survival_at_times(logits, time_bins, new_times)
 
 
 # use just like any other PyTorch module
