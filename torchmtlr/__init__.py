@@ -39,14 +39,12 @@ class MTLR(nn.Module):
             The number of bins to divide the time axis into.
         """
         super().__init__()
-        if num_time_bins < 2:
-            raise ValueError("The number of time bins must be at least 2"
-                             f" (got {num_time_bins})")
+        if num_time_bins < 1:
+            raise ValueError("The number of time bins must be at least 1")
         if in_features < 1:
-            raise ValueError("The number of input features must be at least 1"
-                             f" (got {in_features})")
+            raise ValueError("The number of input features must be at least 1")
         self.in_features = in_features
-        self.num_time_bins = num_time_bins
+        self.num_time_bins = num_time_bins + 1 # + extra time bin [max_time, inf)
 
         self.mtlr_weight = nn.Parameter(torch.Tensor(self.in_features,
                                                      self.num_time_bins - 1))
