@@ -21,7 +21,7 @@ def test_mtlr_forward(x, num_time_bins):
     """Test `forward` method output shape."""
     mtlr = MTLR(x.size(1), num_time_bins)
     out = mtlr(x)
-    expected = (x.size(0), num_time_bins)
+    expected = (x.size(0), num_time_bins+1)
     assert out.shape == expected
 
 
@@ -65,14 +65,14 @@ def test_masked_logsumexp(x, mask, ignore):
 
 @pytest.mark.parametrize("logits,target,expected", testdata)
 def test_mtlr_neg_log_likelihood(logits, target, expected):
-    model = MTLR(2, logits.size(1))
+    model = MTLR(2, logits.size(1)-1)
     nll = mtlr_neg_log_likelihood(logits, target, model, 0, False)
     assert torch.isclose(nll, expected, atol=1e-4)
 
 
 @pytest.mark.parametrize("logits,target,expected", testdata)
 def test_mtlr_neg_log_likelihood_reg(logits, target, expected):
-    model = MTLR(2, logits.size(1))
+    model = MTLR(2, logits.size(1)-1)
     torch.nn.init.constant_(model.mtlr_weight, 1.)
     nll = mtlr_neg_log_likelihood(logits, target, model, 2., False)
     assert torch.isclose(nll, expected + 2 * (logits.size(1) - 1), atol=1e-4)
