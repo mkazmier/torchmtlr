@@ -43,7 +43,7 @@ model = nn.Sequential(
 )
 ```
 
-See the [notebooks] for more advanced usecases.
+See the [notebooks](notebooks) for more usage examples.
 
 
 ## Installation
@@ -60,9 +60,6 @@ Note: by default, the CPU version of Pytorch is installed. If you want to use a 
 ```
 pip install -e .
 ```
-
-## Notes
-### Using 
 
 ## References
 1. C.-N. Yu, R. Greiner, H.-C. Lin, and V. Baracos, ‘Learning patient-specific cancer survival distributions as a sequence of dependent regressors’, in Advances in neural information processing systems 24, pp. 1845–1853.
