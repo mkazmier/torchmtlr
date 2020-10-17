@@ -5,9 +5,12 @@ import numpy as np
 import torch
 
 
-def encode_survival(time: Union[float, int, np.ndarray],
-                    event: Union[int, np.ndarray],
-                    bins: np.ndarray) -> torch.Tensor:
+TensorOrArray = Union[torch.Tensor, np.ndarray]
+
+
+def encode_survival(time: Union[float, int, TensorOrArray],
+                    event: Union[int, bool, TensorOrArray],
+                    bins: TensorOrArray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format
     required for MTLR training.
 
@@ -32,16 +35,32 @@ def encode_survival(time: Union[float, int, np.ndarray],
     torch.Tensor
         Encoded survival times.
     """
-    if isinstance(time, (float, int)):
-        time = np.array([time])
-    if isinstance(event, int):
-        event = np.array([event])
+    # TODO this should handle arrays and (CUDA) tensors
+    if isinstance(time, (float, int, np.ndarray)):
+        time = np.atleast_1d(time)
+        time = torch.tensor(time)
+    if isinstance(event, (int, bool, np.ndarray)):
+        event = np.atleast_1d(event)
+        event = torch.tensor(event)
+
+    if isinstance(bins, np.ndarray):
+        bins = torch.tensor(bins)
+
+    try:
+        device = bins.device
+    except AttributeError:
+        device = "cpu"
 
     time = np.clip(time, 0, bins.max())
     # add extra bin [max_time, inf) at the end
-    y = torch.zeros((time.shape[0], bins.shape[0] + 1), dtype=torch.float)
-    for i, (t, e) in enumerate(zip(time, event)):
-        bin_idx = np.digitize(t, bins)
+    y = torch.zeros((time.shape[0], bins.shape[0] + 1),
+                    dtype=torch.float,
+                    device=device)
+    # For some reason, the `right` arg in torch.bucketize
+    # works in the _opposite_ way as it does in numpy,
+    # so we need to set it to True
+    bin_idxs = torch.bucketize(time, bins, right=True)
+    for i, (bin_idx, e) in enumerate(zip(bin_idxs, event)):
         if e == 1:
             y[i, bin_idx] = 1
         else:
@@ -59,10 +78,11 @@ def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
     return model
 
 
-def make_time_bins(times: np.ndarray,
+def make_time_bins(times: TensorOrArray,
                    num_bins: Optional[int] = None,
                    use_quantiles: bool = True,
-                   event: Optional[np.ndarray] = None) -> np.ndarray:
+                   event: Optional[TensorOrArray] = None
+                   ) -> torch.Tensor:
     """Creates the bins for survival time discretisation.
 
     By default, sqrt(num_observation) bins corresponding to the quantiles of
@@ -71,7 +91,7 @@ def make_time_bins(times: np.ndarray,
     Parameters
     ----------
     times
-        Array of survival times.
+        Array or tensor of survival times.
     num_bins
         The number of bins to use. If None (default), sqrt(num_observations)
         bins will be used.
@@ -79,22 +99,26 @@ def make_time_bins(times: np.ndarray,
         If True, the bin edges will correspond to quantiles of `times`
         (default). Otherwise, generates equally-spaced bins.
     event
-        Array of event indicators. If specified, only samples where event == 1
-        will be used to determine the time bins.
+        Array or tensor of event indicators. If specified, only samples where
+        event == 1 will be used to determine the time bins.
 
     Returns
     -------
-    np.ndarray
-        Array of bin edges.
+    torch.Tensor
+        Tensor of bin edges.
     """
+    # TODO this should handle arrays and (CUDA) tensors
     if event is not None:
         times = times[event == 1]
     if num_bins is None:
         num_bins = ceil(sqrt(len(times)))
     if use_quantiles:
+        # NOTE we should switch to using torch.quantile once it becomes
+        # available in the next version
         bins = np.unique(np.quantile(times, np.linspace(0, 1, num_bins)))
     else:
         bins = np.linspace(times.min(), times.max(), num_bins)
+    bins = torch.tensor(bins, dtype=torch.float)
     return bins
 
 
