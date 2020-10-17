@@ -21,3 +21,12 @@ testdata = [
 def test_encode_survival(time, event, expected, bins):
     encoded = encode_survival(time, event, bins)
     assert torch.all(encoded == expected)
+
+
+# testdata = [
+# ]
+# @pytest.mark.parametrize("times,num_bins,use_quantiles,event,expected", testdata)
+# def test_make_time_bins(times, num_bins, use_quantiles, event, expected):
+#     bins = make_time_bins(times, num_bins, use_quantiles, event)
+#     assert torch.allclose(bins, expected)
+
