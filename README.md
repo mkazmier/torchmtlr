@@ -73,6 +73,8 @@ If you found the package useful for your publication and want to cite it, you ca
 }
 ```
 
+## Note on competing risks
+
 ## References
 1. C.-N. Yu, R. Greiner, H.-C. Lin, and V. Baracos, ‘Learning patient-specific cancer survival distributions as a sequence of dependent regressors’, in Advances in neural information processing systems 24, pp. 1845–1853.
 2. P. Jin, ‘Using Survival Prediction Techniques to Learn Consumer-Specific Reservation Price Distributions’, University of Alberta, Edmonton, AB, 2015.
