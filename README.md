@@ -14,9 +14,9 @@ from torchmtlr import (MTLR, mtlr_neg_log_likelihood,
 from torchmtlr.utils import encode_survival, make_time_bins
 
 
-time = torch.tensor([.5, 1.1, 10.4, 2.3, 3.1]) # time to event for each sample
+time = torch.tensor([.5, 1.1, 10.4, 2.3, 3.1])           # time to event for each sample
 event = torch.tensor([0, 1, 1, 0, 1], dtype=torch.float) # event indicator for reach sample (0 = censored)
-x = torch.randn((5, 10)) # features
+x = torch.randn((5, 10))                                 # features
 
 time_bins = make_time_bins(time, event=event)
 target = encode_survival(time, event, time_bins)
